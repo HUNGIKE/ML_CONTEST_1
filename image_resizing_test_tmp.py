@@ -32,13 +32,16 @@ def imgScale(img):
       nx=int((x-t));ny=int((y-l))
       if nx>=0 and ny>=0 and nx<28 and ny<28:
         img[nx,ny]=v;
-  img=img[:int(w+2),:int(h+2)]
+      img[x,y]=0.0
+  img=img[:int(h),:int(w)]
   img=transform.resize(img,[28,28])
   return img.reshape(784)
 
 def imgsScale(imgs):
   for idx,img in enumerate(imgs):
     imgs[idx]=imgScale(img)
+    io.imshow(imgs[idx].reshape(28,28))
+    io.show()
   return imgs
 
 
@@ -69,5 +72,3 @@ if __name__=='__main__':
   img=transform.rotate(img,60)
   io.imshow(img)
   io.show()
-
-
