@@ -35,7 +35,7 @@ if __name__=='__main__':
   
   
   io.imshow(img)
-  img=transform.warp(img, tform)
+  img=transform.rotate(img,180)
   io.imshow(img)
   io.show()
 

@@ -7,6 +7,7 @@ import skimage.feature
 from image_preprocess import *
 from image_resizing_test_tmp import *
 import time
+from random import randint
 
 #==================checking data =====================
 def showImage(img):
@@ -56,7 +57,7 @@ def getTrainSet(binaryDir,labelFile):
     labels=[];
     imgs=[];
     readNum=0;
-    with open(binaryDir+'/'+labelFile,'rb') as f:
+    with open(labelFile,'rb') as f:
       csvReader= csv.reader(f,delimiter=',',quotechar='|')
       for row in csvReader:
         sha1=row[0];label=int(row[1]);
@@ -96,7 +97,7 @@ def preprocess1(imgs):
     for img in imgs:
 	img2=img.reshape(28,28)
 	img2=[ sum([ 1 if k >0.1 else 0  for k in  img2[j,:] ]) for j in range(img2.shape[0]) ] + \
-	     [ sum([ 1 if k >0.1 else 0  for k in  img2[:,j] ]) for j in range(img2.shape[1]) ] 
+	     [ sum([ 1 if k >0.1 else 0  for k in  img2[:,j] ]) for j in range(img2.shape[1]) ]
 	img2=[ i/28.0 for i in img2 ]
 	# img2=img2+img.tolist()
         img2=numpy.array(img2)
@@ -106,15 +107,13 @@ def preprocess1(imgs):
     imgs2.reshape(imgs.shape[0],56)
     return imgs2
 
-def preprocess2(imgs):
-  for idx,img in enumerate(imgs):
-      for idx,point in enumerate(img):
-        if point>0.8:
-          img[idx]=1
-        else:
-          img[idx]=0
 
-  return imgs
+def preprocess2(imgs):
+  imgs2=numpy.asarray([]).reshape(-1,784)
+  for idx,img in enumerate(imgs):
+      img2=transform.rotate(img.reshape(28,28),randint(-10,10)).reshape(1,784)
+      imgs2=numpy.append(imgs2,img2,0)
+  return imgs2
 
 
 
@@ -141,7 +140,7 @@ def max_pool_2x2(x):
 
 
 #======================================================
-preprocess= dummypreprocess
+preprocess=preprocess2
 
 
 def main():
@@ -189,13 +188,14 @@ def main():
   b_fc2 = bias_variable([10])
   y_conv=tf.nn.softmax( tf.matmul(h_fc1, W_fc2)+ b_fc2)
 
-
-
-
-
   y = tf.placeholder(tf.float32, shape=[None,10])
-  cross_entropy = tf.reduce_mean(  -tf.reduce_sum(y*tf.log(y_conv), reduction_indices=[1])  )  
-  # cross_entropy = tf.nn.softmax_cross_entropy_with_logits(y_conv,y)
+  # cross_entropy = tf.reduce_mean(  -tf.reduce_sum(y*tf.log(y_conv), reduction_indices=[1])  )
+  cross_entropy = tf.nn.softmax_cross_entropy_with_logits(y_conv,y)
+  regularizers = (tf.nn.l2_loss(W_fc1) + tf.nn.l2_loss(b_fc1) +
+                  tf.nn.l2_loss(W_fc2) + tf.nn.l2_loss(b_fc2))
+  cross_entropy+=5e-4*regularizers
+
+
 
 
   learning_rate = tf.train.exponential_decay(
@@ -215,8 +215,12 @@ def main():
   #==========================================================================
 
   print("reading train data..")
-  data=getTrainSet('digit_data/train/','train.csv');
+  data=getTrainSet('digit_data/train/','digit_data/train.csv');
   print("read finished")
+
+  print("rescaling ..")
+  data[0]=imgsScale(data[0])
+  print("rescaled ..")
 
    #checkData(trainSet,100);
 
@@ -225,19 +229,19 @@ def main():
   validSet=[data[0][trainSetNum:]  ,data[1][trainSetNum:],data[2][trainSetNum:]]
 
 
-  RunNum=8000
+  RunNum=6000
   batchNum=50
   p=0
   for i in range(RunNum):
     if i%50==0:print('p='+str(p)+',i='+str(i))
 
     batch=trainSet[0][p:p+batchNum],trainSet[1][p:p+batchNum]
-    train_step.run(feed_dict={x: preprocess( batch[0] ),keep_prob:0.5 ,y: batch[1]})
+    train_step.run(feed_dict={x: preprocess( batch[0] ),keep_prob:0.75 ,y: batch[1]})
 
     if i%500==0:
       correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y,1))
       accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-      acc_val=accuracy.eval(feed_dict={x: preprocess( validSet[0] ),keep_prob:1.0,y: validSet[1]})
+      acc_val=accuracy.eval(feed_dict={x: dummypreprocess( validSet[0] ),keep_prob:1.0,y: validSet[1]})
       print( 'accuracy: '+str(acc_val) )
     p=(p+batchNum)%trainSetNum;
 
@@ -249,7 +253,7 @@ def main():
   with open('./submit_'+str(int(time.time()))+'.csv','w') as output_f:
     for idx,sha1 in enumerate(sha1s):
       img=imgs[idx:idx+1];
-      result=y_conv.eval( feed_dict={ x: preprocess(img),keep_prob:1.0 } );
+      result=y_conv.eval( feed_dict={ x: dummypreprocess(img),keep_prob:1.0 } );
       result=[ str(round(r, 2)) for r in result[0] ];
       output_line=','.join([str(sha1)]+result)
       print(output_line)
